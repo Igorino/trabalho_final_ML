@@ -4,6 +4,7 @@ import shutil
 import logging
 from collections import defaultdict
 from datetime import datetime
+import csv
 
 # Configuração do logging
 logging.basicConfig(
@@ -20,9 +21,11 @@ logger = logging.getLogger(__name__)
 IMG_DIR = "E:/Downloads/celebA/img_align_celeba"
 IDENTITY_FILE = "resources/annotations/identity_CelebA.txt"
 OUT_DIR = "resources/celeba_subset"
-K_IDS = 2000
+K_IDS = 10
 M_PER_ID = 10
 SEED = 42
+TRAIN_PRCNT = 0.7
+VAL_PRCNT = 0.15
 
 USE_SYMLINK = False  # True = rápido e não duplica espaço | False = copia
 
@@ -134,6 +137,11 @@ def main():
     total = 0
     processed_ids = 0
 
+    split_csv_path = os.path.join(OUT_DIR, "split.csv")
+    csv_file = open(split_csv_path, "w", newline="", encoding="utf-8")
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(["filepath", "person_id", "split"])
+
     for person_id in chosen_ids:
         processed_ids += 1
         logger.info(f"Processando identidade {person_id} ({processed_ids}/{len(chosen_ids)})")
@@ -142,27 +150,50 @@ def main():
         logger.info(f"  Imagens disponíveis para ID {person_id}: {len(imgs)}")
 
         chosen_imgs = random.sample(imgs, M_PER_ID)
+        # random.shuffle(chosen_imgs)
         logger.info(f"  Imagens selecionadas: {len(chosen_imgs)}")
 
-        person_dir = os.path.join(OUT_DIR, f"person_{person_id}")
-        os.makedirs(person_dir, exist_ok=True)
-        logger.info(f"  Diretório criado: {person_dir}")
+        n_train = int(round(M_PER_ID * TRAIN_PRCNT))  # 7 quando M_PER_ID=10
+        n_val = max(1, int(round(M_PER_ID * VAL_PRCNT)))  # 1 quando M_PER_ID=10
+
+        # garante que soma não estoura
+        if n_train + n_val > M_PER_ID - 1:
+            n_val = M_PER_ID - n_train - 1
+        n_test = M_PER_ID - n_train - n_val
+
+        train_imgs = chosen_imgs[:n_train]
+        val_imgs = chosen_imgs[n_train:n_train + n_val]
+        test_imgs = chosen_imgs[n_train + n_val:]
+
+        splits = [("train", train_imgs), ("val", val_imgs), ("test", test_imgs)]
+        logger.info(f"  Divisão das imagens: Train = {TRAIN_PRCNT*100}% ({n_train}), Val = {VAL_PRCNT*100}% ({n_val}), Test = {100-((TRAIN_PRCNT + VAL_PRCNT)*100)}% ({n_test})")
 
         person_total = 0
-        for fn in chosen_imgs:
-            src = os.path.join(IMG_DIR, fn)
-            dst = os.path.join(person_dir, fn)
+        for split_name, split_imgs in splits:
+            person_dir = os.path.join(OUT_DIR, split_name, f"person_{person_id}")
+            os.makedirs(person_dir, exist_ok=True)
+            logger.info(f"  Diretório criado: {person_dir}")
 
-            # Verificar se arquivo fonte existe
-            if not os.path.exists(src):
-                logger.warning(f"  Arquivo fonte não encontrado: {src}")
-                continue
+            for fn in split_imgs:
+                src = os.path.join(IMG_DIR, fn)
+                dst = os.path.join(person_dir, fn)
 
-            safe_link(src, dst)
-            total += 1
-            person_total += 1
+                if not os.path.exists(src):
+                    logger.warning(f"  Arquivo fonte não encontrado: {src}")
+                    continue
+
+                safe_link(src, dst)
+                total += 1
+                person_total += 1
+
+                # caminho relativo fica mais portátil
+                relpath = os.path.relpath(dst, start=OUT_DIR)
+                csv_writer.writerow([relpath.replace("\\", "/"), person_id, split_name])
 
         logger.info(f"  Identidade {person_id} processada: {person_total} imagens copiadas")
+
+    csv_file.close()
+    logger.info(f"Split CSV salvo em: {split_csv_path}")
 
     end_time = datetime.now()
     duration = end_time - start_time
