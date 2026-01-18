@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 IMG_DIR = "E:/Downloads/celebA/img_align_celeba"
 IDENTITY_FILE = "resources/annotations/identity_CelebA.txt"
 OUT_DIR = "resources/celeba_subset"
-K_IDS = 10
-M_PER_ID = 10
+K_IDS = 2000
+M_PER_ID = 30
 SEED = 42
 TRAIN_PRCNT = 0.7
 VAL_PRCNT = 0.15
@@ -133,7 +133,7 @@ def main():
     logger.info(f"Criando diretório de saída: {OUT_DIR}")
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    logger.info("Iniciando cópia/link das imagens...")
+    logger.info("Iniciando cópia das imagens...")
     total = 0
     processed_ids = 0
 
@@ -153,8 +153,8 @@ def main():
         # random.shuffle(chosen_imgs)
         logger.info(f"  Imagens selecionadas: {len(chosen_imgs)}")
 
-        n_train = int(round(M_PER_ID * TRAIN_PRCNT))  # 7 quando M_PER_ID=10
-        n_val = max(1, int(round(M_PER_ID * VAL_PRCNT)))  # 1 quando M_PER_ID=10
+        n_train = int(round(M_PER_ID * TRAIN_PRCNT))
+        n_val = max(1, int(round(M_PER_ID * VAL_PRCNT)))
 
         # garante que soma não estoura
         if n_train + n_val > M_PER_ID - 1:
