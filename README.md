@@ -155,9 +155,3 @@ python src/train_resnet18_celeba.py
 
 - GPU (CUDA) is highly recommended for training
 - Training on CPU is possible but significantly slower
-
----
-
-## Author
-
-Igor Ferreira
